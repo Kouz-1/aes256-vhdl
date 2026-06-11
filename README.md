@@ -1,99 +1,140 @@
-# AES-256 Hardware Accelerator (VHDL)
+# AES-256 Encryption Core (VHDL)
 
-A synthesizable VHDL implementation of the **AES** block cipher, provided in **two
-architectures** — an area-efficient *iterative* core and a high-throughput
-*fully-pipelined* core. The design is parameterizable for **AES-128 / 192 / 256**
-(defaults to AES-256) and is verified against **400 known-answer test vectors**.
+A synthesizable VHDL implementation of the **AES-256 block cipher**, provided in
+two architectures — an area-efficient *iterative* core and a high-throughput
+*fully-pipelined* core — targeting the **Xilinx Artix-7** FPGA family. Verified
+against **400 known-answer test vectors**.
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![Language: VHDL](https://img.shields.io/badge/Language-VHDL-blue.svg)
-![Verification](https://img.shields.io/badge/KAT-400%2F400%20passing-brightgreen.svg)
+![KAT](https://img.shields.io/badge/KAT-400%2F400%20passing-brightgreen.svg)
+![Device](https://img.shields.io/badge/Device-Artix--7-blue.svg)
+![Tool](https://img.shields.io/badge/Tool-Vivado%202023.2-orange.svg)
 
 ---
 
-## Highlights
+## Two Architectures, One Goal
 
-- **Two architectures** of the same cipher, sharing the same building blocks:
-  - **Iterative** — a single round datapath reused over 14 cycles. Compact, low area.
-  - **Fully-pipelined** — one register stage per round (~15 stages deep), so a new
-    128-bit block can be accepted on every clock cycle once the pipeline is filled.
-- **Parameterizable key size** via the generic `N` (128 / 192 / 256); the controller
-  holds the matching round count and RCON schedule for each.
-- **LUT-based S-box**, GF(2⁸) MixColumns, on-the-fly key expansion.
-- **Thorough verification:** a self-checking testbench runs 400 known-answer vectors
-  with automatic PASS/FAIL counting, backed by 15 per-module unit testbenches.
+Both cores implement the same AES-256 cipher (256-bit key, 14 rounds, 128-bit block)
+and share the same RTL building blocks — the difference is purely micro-architectural:
 
----
-
-## Repository structure
-
-```
-AES_HARDWARE/
-├── AES-256_Iterative/        # Area-efficient core (round datapath reused)
-│   ├── rtl/                  # AES, Controller, KeyExpansion, MainRound, MUXes, ...
-│   └── tb/                   # AES_tb
-├── AES-256_FullyPipelined/   # High-throughput core (one stage per round)
-│   ├── rtl/                  # AES_Fully_Pipelined, InitialRound, Round1, FinalRound, ...
-│   └── tb/                   # AES_Fully_Pipelined_tb, AES_SelfTest, kat_256_constants
-├── tb_unit_common/           # Per-module unit testbenches (S_BOX, MixColumns, ...)
-└── reports/                  # Timing & utilization reports  (add yours here)
-```
+| | Iterative | Fully Pipelined |
+|---|---|---|
+| **Strategy** | Single round datapath, reused 14× | One dedicated hardware stage per round |
+| **Latency** | 15 cycles / block | 15 cycles (pipeline fill) |
+| **Throughput** | 1 block per 15 cycles | **1 block per cycle** (sustained) |
+| **LUT usage** | 2 573 (4.1 %) | 15 360 (24.2 %) |
+| **Flip-flops** | 1 029 (0.8 %) | 5 376 (4.2 %) |
+| **Fmax** | ≈ 161 MHz | **≈ 214 MHz** |
+| **Throughput** | ≈ 1.37 Gbps | **≈ 27.36 Gbps** |
+| **Total power** | 0.593 W | 1.497 W |
+| **Timing @ 200 MHz** | ❌ FAIL (WNS −1.212 ns) | ✅ PASS (WNS +0.321 ns) |
 
 ---
 
-## Results
+## Benchmark Results
 
-> Fill these in from the timing and utilization reports (`reports/`).
-> The two architectures trade area against throughput — the table makes that explicit.
+> Target: **Xilinx Artix-7** · Tool: **Vivado 2023.2** ·
+> Clock constraint: **200 MHz (5.0 ns)**
 
-| Metric                | Iterative      | Fully-Pipelined |
-|-----------------------|----------------|-----------------|
-| Target device         | `<device>`     | `<device>`      |
-| Toolchain             | `<Vivado ...>` | `<Vivado ...>`  |
-| Max frequency (Fmax)  | `<MHz>`        | `<MHz>`         |
-| Latency               | 14 cycles/block| ~15 cycles (fill) |
-| Throughput            | `<Gbps>`       | `<Gbps>`        |
-| LUTs                  | `<n>`          | `<n>`           |
-| Flip-flops            | `<n>`          | `<n>`           |
+### Resource Utilization
 
-Throughput reference:
-- **Iterative:** `(128 / 14) × Fmax` bits/s — one block every 14 cycles.
-- **Fully-pipelined:** `128 × Fmax` bits/s — one block per cycle after fill.
+| Resource | Available | Iterative | % | Fully Pipelined | % |
+|---|---|---|---|---|---|
+| Slice LUTs | 63 400 | 2 573 | 4.06 % | 15 360 | 24.23 % |
+| Slice Registers | 126 800 | 1 029 | 0.81 % | 5 376 | 4.24 % |
+| F7 Muxes | 31 700 | 576 | 1.82 % | 4 416 | 13.93 % |
+| F8 Muxes | 15 850 | 280 | 1.77 % | 1 968 | 12.42 % |
+| Block RAMs | 135 | 0 | 0 % | 0 | 0 % |
+| DSPs | 240 | 0 | 0 % | 0 | 0 % |
+
+Neither design uses BRAMs or DSPs — AES-256 operations (XOR, S-box) are
+implemented entirely in LUTs.
+
+### Timing
+
+| Parameter | Iterative | Fully Pipelined |
+|---|---|---|
+| WNS | −1.212 ns | +0.321 ns |
+| WHS | +0.143 ns | +0.038 ns |
+| Critical path | 6.075 ns (10 logic levels) | 4.384 ns (7 logic levels) |
+| Achievable Fmax | ≈ 161 MHz | ≈ 214 MHz |
+
+The iterative core misses the 200 MHz constraint by 1.212 ns — the critical path runs
+through the shared key-expansion path. Adding one pipeline register in that path would
+likely resolve the 128 violations with negligible area overhead.
+
+### Performance
+
+| Metric | Iterative | Fully Pipelined |
+|---|---|---|
+| Latency | 93.18 ns / block | 70.19 ns / block |
+| Throughput | ≈ 1.37 Gbps | ≈ 27.36 Gbps |
+| Throughput / LUT | 0.534 Mbps / LUT | 1.781 Mbps / LUT |
+| Throughput / Power | 2.32 Gbps / W | 18.28 Gbps / W |
+| Area × Time | 239 841 LUT·ns | 71 869 LUT·ns |
+
+The pipelined core delivers **~20× more throughput** while achieving **~3.3× better
+Throughput/LUT** and **~7.9× better Throughput/Power** ratios.
+
+### Power (synthesized — Low confidence)
+
+| Component | Iterative | Fully Pipelined |
+|---|---|---|
+| Dynamic | 0.501 W | 1.403 W |
+| Static | 0.092 W | 0.094 W |
+| **Total** | **0.593 W** | **1.497 W** |
 
 ---
 
 ## Architecture
 
-Both cores share the same round transformation — SubBytes → ShiftRows → MixColumns →
-AddRoundKey — with the final round omitting MixColumns.
+Both cores share the same round-transformation building blocks:
 
-- **S-box:** combinational LUT (256-entry).
-- **MixColumns:** GF(2⁸) multipliers (`GF2_Mul` / `Columns_Mul`).
-- **Key expansion:** on-the-fly, driven by the controller's RCON schedule.
-- **Iterative core:** a counter-driven FSM (`Controller`) feeds the state and round key
-  back through the round datapath for 14 iterations, then asserts `FINAL_ROUND`.
-- **Pipelined core:** the round instances are chained, each followed by text/key
-  registers, so 14 independent blocks can be in flight simultaneously.
+- **S-box** — 256-entry combinational LUT (FIPS-197 §5.1.1)
+- **MixColumns** — GF(2⁸) column multipliers (`GF2_Mul` / `Columns_Mul`)
+- **Key expansion** — on-the-fly, driven by a RCON schedule in the `Controller`
 
-<!-- A block diagram here helps a lot for a portfolio — drop a PNG/SVG in reports/ or docs/
-     and reference it:  ![Architecture](reports/architecture.png) -->
+**Iterative core (`AES`):** a counter-driven FSM reuses a single
+SubBytes→ShiftRows→MixColumns→AddRoundKey datapath over 14 clock cycles.
+MUX and MUXK route state and key feedback. Compact, minimal area.
+
+**Pipelined core (`AES_Fully_Pipelined`):** 14 round stages chained in hardware —
+InitialRound → 12× Round1 → FinalRound — each separated by text/key pipeline
+registers (~27 registers total). One new 128-bit block enters per clock cycle once
+the pipeline is filled.
+
+---
+
+## Repository Structure
+
+```
+AES_HARDWARE/
+├── AES-256_Iterative/
+│   ├── rtl/          # AES, Controller, KeyExpansion, MainRound, MUXes, ...
+│   └── tb/           # AES_tb
+├── AES-256_FullyPipelined/
+│   ├── rtl/          # AES_Fully_Pipelined, InitialRound, Round1, FinalRound, ...
+│   └── tb/           # AES_Fully_Pipelined_tb, AES_SelfTest, kat_256_constants
+├── tb_unit_common/   # 15 per-module unit testbenches
+└── reports/          # Vivado timing, utilization, and power reports
+```
 
 ---
 
 ## Verification
 
-The pipelined core is validated by **`AES_SelfTest.vhd`**, which streams **400
-known-answer test (KAT) vectors** (`kat_256_constants.vhd`, generated from a JSON
-vector set) through the DUT, accounts for the pipeline latency, and compares each
-output against the expected ciphertext — incrementing PASS/FAIL counters and reporting
-any mismatch with expected-vs-got values.
+**`AES_SelfTest.vhd`** streams **400 AES-256 known-answer test vectors**
+(`kat_256_constants.vhd`) through the pipelined DUT, accounts for the 15-cycle
+pipeline latency, and compares every output against the expected ciphertext —
+logging PASS/FAIL with expected-vs-got detail on any mismatch.
 
-In addition, **`tb_unit_common/`** contains standalone testbenches for every building
-block — S-box, SubBytes, ShiftRows, MixColumns, AddRoundKey, GF(2) multiply,
-KeyExpansion(Core), Controller, InitialRound, Round1, FinalRound, MainSteps and the
-registers — so each module is checked in isolation before integration.
+**`tb_unit_common/`** provides standalone self-checking testbenches for every
+building block: S-box, SubBytes, ShiftRows, MixColumns, AddRoundKey, GF(2)
+multiplier, KeyExpansion(Core), Controller, InitialRound, Round1, FinalRound,
+MainSteps, and the registers.
 
-### Running the self-test (example, GHDL)
+### Running the self-test (GHDL example)
 
 ```bash
 cd AES-256_FullyPipelined
@@ -104,20 +145,33 @@ ghdl -r AES_SelfTest
 
 ---
 
+## When to Use Each Architecture
+
+| Use case | Iterative | Pipelined |
+|---|---|---|
+| High-throughput stream encryption (network, storage) | | ✓ |
+| Resource-constrained / small FPGA | ✓ | |
+| Low-power IoT / embedded | ✓ | |
+| Server / datacenter crypto accelerator | | ✓ |
+| Maximum frequency operation | | ✓ |
+| Battery-powered devices | ✓ | |
+
+---
+
 ## License
 
-Released under the [MIT License](LICENSE). AES is a public standard (FIPS-197);
-this is an independent implementation.
+Released under the [MIT License](LICENSE).
+AES is a public standard (FIPS-197); this is an independent implementation.
 
 ---
 
 ## Author
 
-**Marouane Kouzi** — `<link to your GitHub / LinkedIn>`
+**Marouane Kouzi**
 
 If you use this work academically, you can cite it as:
 
 ```
 Marouane Kouzi, "AES-256 Hardware Accelerator (VHDL)", 2026.
-GitHub: https://github.com/<user>/<repo>
+GitHub: https://github.com/Kouz-1/aes256-vhdl
 ```
