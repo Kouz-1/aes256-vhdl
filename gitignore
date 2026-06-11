@@ -1,0 +1,67 @@
+# ──────────────────────────────────────────────────────────────
+# .gitignore for a VHDL / FPGA project
+# Keeps source + curated reports; drops vendor-generated noise.
+# Adjust to match the tools you actually use.
+# ──────────────────────────────────────────────────────────────
+
+# ── Xilinx Vivado ──
+*.jou
+*.log
+*.str
+*.backup.*
+*.wdb
+*.pb
+*.dcp
+.Xil/
+*.cache/
+*.hw/
+*.ip_user_files/
+*.runs/
+*.sim/
+*.gen/
+usage_statistics_webtalk.*
+vivado_pid*.str
+
+# ── Intel/Altera Quartus ──
+db/
+incremental_db/
+output_files/
+*.qws
+*.sof
+*.pof
+*.done
+*.smsg
+*.pin
+*.qarlog
+# NOTE: Quartus auto-generates *.rpt in output_files/. Your curated
+# reports/ folder is committed separately and is NOT affected by the
+# output_files/ rule above.
+
+# ── ModelSim / Questa ──
+work/
+transcript
+*.wlf
+vsim.wlf
+*.vstf
+.vt/
+
+# ── GHDL ──
+*.cf
+*.o
+*.ghw
+work-obj*.cf
+
+# ── Bitstreams / large binaries (keep these out of git;
+#    attach to a GitHub Release instead if you want to publish one) ──
+*.bit
+*.bin
+*.rbf
+
+# ── OS / editor cruft ──
+.DS_Store
+Thumbs.db
+*~
+*.bak
+*.tmp
+.vscode/
+.idea/
