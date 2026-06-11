@@ -99,6 +99,8 @@ Both cores share the same round-transformation building blocks:
 SubBytes→ShiftRows→MixColumns→AddRoundKey datapath over 14 clock cycles.
 MUX and MUXK route state and key feedback. Compact, minimal area.
 
+
+
 **Pipelined core (`AES_Fully_Pipelined`):** 14 round stages chained in hardware —
 InitialRound → 12× Round1 → FinalRound — each separated by text/key pipeline
 registers (~27 registers total). One new 128-bit block enters per clock cycle once
@@ -109,15 +111,16 @@ the pipeline is filled.
 ## Repository Structure
 
 ```
-AES_HARDWARE/
+aes256-vhdl/
 ├── AES-256_Iterative/
 │   ├── rtl/          # AES, Controller, KeyExpansion, MainRound, MUXes, ...
 │   └── tb/           # AES_tb
+│   └── reports/      # Vivado timing, utilization, and power reports
 ├── AES-256_FullyPipelined/
 │   ├── rtl/          # AES_Fully_Pipelined, InitialRound, Round1, FinalRound, ...
 │   └── tb/           # AES_Fully_Pipelined_tb, AES_SelfTest, kat_256_constants
-├── tb_unit_common/   # 15 per-module unit testbenches
-└── reports/          # Vivado timing, utilization, and power reports
+│   └── reports/      # Vivado timing, utilization, and power reports
+└── tb_unit_common/   # 15 per-module unit testbenches
 ```
 
 ---
@@ -172,6 +175,6 @@ AES is a public standard (FIPS-197); this is an independent implementation.
 If you use this work academically, you can cite it as:
 
 ```
-Marouane Kouzi, "AES-256 Hardware Accelerator (VHDL)", 2026.
+Marouane Kouzi, "AES-256 Encryption Core (VHDL)", 2026.
 GitHub: https://github.com/Kouz-1/aes256-vhdl
 ```
